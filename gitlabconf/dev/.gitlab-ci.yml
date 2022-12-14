@@ -1,19 +1,19 @@
 
+stages: 
+  - build
+  - deploy
 # Cache node_modules - speeds up future builds
 cache:
   paths:
     - node_modules
 variables:
   APP_ENV: "dev"
-stages: 
-  - build
-  - deploy
 #--------------------------------#
 react_build:
   stage: build
   # Build aşaması
-  image: node:17.2.0
-  script: |
+  image: node:alpine
+  script:
     - npm install
     - npm run build-${APP_ENV}
   # Nereye kopyalanacağı ve ne build çıktısının ne kadar süre saklanacağını belirttiğimiz bölüm
@@ -23,17 +23,16 @@ react_build:
       - build/
 #--------------------------------#
 react_deploy:
-  stage: 
-    - deploy
+  stage: deploy
   needs: [react_build]
-
   image: alpine
-  
-  # SSH key ekleyip dosya kopyalama (deploy) işlemi yaptığımız bölüm
-  script:
+  before_script:
     # Alpine olduğu için apk kullanarak rsync ve openssh paketlerini yüklüyoruz.
     - apk add --no-cache rsync openssh
 
+  # SSH key ekleyip dosya kopyalama (deploy) işlemi yaptığımız bölüm
+  script:
+    
     # Dosyamızı tar haline getiriyoruz.
     # - tar xvf build/ build.tar.gz
 
