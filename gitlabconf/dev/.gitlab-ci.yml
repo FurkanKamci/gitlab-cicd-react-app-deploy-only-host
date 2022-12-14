@@ -5,7 +5,7 @@ cache:
     - node_modules
 variables:
   APP_ENV: "dev"
-stage: 
+stages: 
   - build
   - deploy
 #--------------------------------#
