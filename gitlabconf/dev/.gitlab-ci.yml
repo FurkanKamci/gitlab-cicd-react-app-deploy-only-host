@@ -1,0 +1,57 @@
+
+# Cache node_modules - speeds up future builds
+cache:
+  paths:
+    - node_modules
+variables:
+  APP_ENV: "dev"
+stage: 
+  - build
+  - deploy
+#--------------------------------#
+react_build:
+  stage: build
+  # Build aşaması
+  image: node:17.2.0
+  script: |
+    - npm install
+    - npm run build-${APP_ENV}
+  # Nereye kopyalanacağı ve ne build çıktısının ne kadar süre saklanacağını belirttiğimiz bölüm
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - build/
+#--------------------------------#
+react_deploy:
+  stage: 
+    - deploy
+  needs: [react_build]
+
+  image: alpine
+  
+  # SSH key ekleyip dosya kopyalama (deploy) işlemi yaptığımız bölüm
+  script:
+    # Alpine olduğu için apk kullanarak rsync ve openssh paketlerini yüklüyoruz.
+    - apk add --no-cache rsync openssh
+
+    # Dosyamızı tar haline getiriyoruz.
+    # - tar xvf build/ build.tar.gz
+
+    # SSH key’imizi saklamak için .ssh dosyasını oluşturuyoruz.
+    - mkdir -p ~/.ssh
+
+    # Bağlanacağımız sunucumuzun ssh key ini global değişkenden çekip id_dsa dosyamıza kopyalıyoruz.
+    - echo "$DEPLOY_HOST_SSH_PRIVATE_KEY" >> ~/.ssh/id_dsa
+
+    # chmod ile dosya yetkilerini ayarlıyoruz.
+    - chmod 600 ~/.ssh/id_dsa
+
+    # 
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+    # Build klasörümüzü ve nginx.conf dosyamızı yüklediğimiz rsync paketini kullanarak kopyalarız.
+    # - rsync -zvh build.tar.gz user@server.com:/your/project/path/
+    - rsync -rav --delete build/ react-demo-user@192.168.230.134:/usr/share/nginx/html
+    - rsync -rav /gitlabconf/${APP_ENV}/nginx/nginx.conf react-demo-user@192.168.230.134:/etc/nginx/nginx.conf
+
+#--------------------------------#
