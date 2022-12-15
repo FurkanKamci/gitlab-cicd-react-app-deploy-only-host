@@ -16,41 +16,31 @@ react_build:
   script:
     - npm install
     - npm run build-${APP_ENV}
+    - tar -cvzf build.tar.gz build/
   # Nereye kopyalanacağı ve ne build çıktısının ne kadar süre saklanacağını belirttiğimiz bölüm
   artifacts:
     expire_in: 1 day
     paths:
-      - build/
+      - build.tar.gz
 #--------------------------------#
 react_deploy:
   stage: deploy
   needs: [react_build]
   image: alpine
-  before_script:
-    # Alpine olduğu için apk kullanarak rsync ve openssh paketlerini yüklüyoruz.
-    - apk add --no-cache rsync openssh
-
-  # SSH key ekleyip dosya kopyalama (deploy) işlemi yaptığımız bölüm
-  script:
     
-    # Dosyamızı tar haline getiriyoruz.
-    # - tar xvf build/ build.tar.gz
+  script:
+      - apk add --no-cache rsync openssh
+      - mkdir -p ~/.ssh
+      - echo "$DEPLOY_HOST_SSH_PRIVATE_KEY" >> ~/.ssh/id_dsa
+      - chmod 600 ~/.ssh/id_dsa
+      - ssh-keyscan -t ecdsa 192.168.230.134 >> ~/.ssh/known_hosts
+      - chmod 644 ~/.ssh/known_hosts
+      - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
 
-    # SSH key’imizi saklamak için .ssh dosyasını oluşturuyoruz.
-    - mkdir -p ~/.ssh
+      - scp build.tar.gz react-demo-user@192.168.230.134:/home/react-demo-user/react-project
 
-    # Bağlanacağımız sunucumuzun ssh key ini global değişkenden çekip id_dsa dosyamıza kopyalıyoruz.
-    - echo "$DEPLOY_HOST_SSH_PRIVATE_KEY" >> ~/.ssh/id_dsa
-
-    # chmod ile dosya yetkilerini ayarlıyoruz.
-    - chmod 600 ~/.ssh/id_dsa
-
-    # 
-    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
-
-    # Build klasörümüzü ve nginx.conf dosyamızı yüklediğimiz rsync paketini kullanarak kopyalarız.
-    # - rsync -zvh build.tar.gz user@server.com:/your/project/path/
-    - rsync -rav --delete build/ react-demo-user@192.168.230.134:/usr/share/nginx/html
-    - rsync -rav /gitlabconf/${APP_ENV}/nginx/nginx.conf react-demo-user@192.168.230.134:/etc/nginx/nginx.conf
-
-#--------------------------------#
+      - ssh react-demo-user@192.168.230.134 "
+           cd react-project/;
+           pwd;
+           ./update.sh
+           "
